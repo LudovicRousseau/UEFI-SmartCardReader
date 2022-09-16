@@ -21,7 +21,7 @@
  * $Id: ccid_uefi.h 5473 2011-01-04 09:52:26Z rousseau $
  */
 
-#ifndef __CCID_UEF_H__
+#ifndef __CCID_UEFI_H__
 #define __CCID_UEFI_H__
 status_t OpenUEFI(unsigned int reader_index, DWORD channel);
 
