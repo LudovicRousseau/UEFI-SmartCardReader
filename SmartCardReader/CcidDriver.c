@@ -496,7 +496,6 @@ SmartCardReaderDriverBindingStart (
     .SCardGetAttrib = SCardGetAttrib
   };
   INTN slot, reader_index;
-  CcidDesc *ccid_slot;
   _ccid_descriptor *ccid_descriptor;
   USB_CCID_DEV *previous_UsbCcidDevice;
 
@@ -566,7 +565,6 @@ SmartCardReaderDriverBindingStart (
 
   /* multi slot readers */
   reader_index = LunToReaderIndex(UsbCcidDevice->Lun);
-  ccid_slot = get_ccid_slot(reader_index);
   ccid_descriptor = get_ccid_descriptor(reader_index);
   previous_UsbCcidDevice = UsbCcidDevice;
 
