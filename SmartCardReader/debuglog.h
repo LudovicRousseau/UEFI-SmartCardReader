@@ -67,7 +67,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #define Log4(priority, fmt, data1, data2, data3) DEBUG((priority, "%d:%a() " fmt "\n", __LINE__, __FUNCTION__, data1, data2, data3))
 #define Log5(priority, fmt, data1, data2, data3, data4) DEBUG((priority, "%d:%a() " fmt "\n", __LINE__, __FUNCTION__, data1, data2, data3, data4))
 #define Log9(priority, fmt, data1, data2, data3, data4, data5, data6, data7, data8) DEBUG((priority, "%d:%a() " fmt "\n", __LINE__, __FUNCTION__, data1, data2, data3, data4, data5, data6, data7, data8))
-#define LogXxd(priority, msg, buffer, size) log_xxd((priority, msg, buffer, size))
+#define LogXxd(priority, msg, buffer, size) log_xxd(priority, msg, buffer, size)
 #endif
 
 #define PCSC_LOG_DEBUG EFI_D_WARN
