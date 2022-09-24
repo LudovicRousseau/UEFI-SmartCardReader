@@ -531,109 +531,111 @@ int ccid_open_hack_post(unsigned int reader_index)
 void ccid_error(int error, const char *file, int line, const char *function)
 {
 #ifndef NO_LOG
-	const char *text;
+	const short unsigned int *text;
+#ifndef UEFI_DRIVER
 	char var_text[30];
+#endif
 
 	switch (error)
 	{
 		case 0x00:
-			text = "Command not supported or not allowed";
+			text = L"Command not supported or not allowed";
 			break;
 
 		case 0x01:
-			text = "Wrong command length";
+			text = L"Wrong command length";
 			break;
 
 		case 0x05:
-			text = "Invalid slot number";
+			text = L"Invalid slot number";
 			break;
 
 		case 0xA2:
-			text = "Card short-circuiting. Card powered off";
+			text = L"Card short-circuiting. Card powered off";
 			break;
 
 		case 0xA3:
-			text = "ATR too long (> 33)";
+			text = L"ATR too long (> 33)";
 			break;
 
 		case 0xAB:
-			text = "No data exchanged";
+			text = L"No data exchanged";
 			break;
 
 		case 0xB0:
-			text = "Reader in EMV mode and T=1 message too long";
+			text = L"Reader in EMV mode and T=1 message too long";
 			break;
 
 		case 0xBB:
-			text = "Protocol error in EMV mode";
+			text = L"Protocol error in EMV mode";
 			break;
 
 		case 0xBD:
-			text = "Card error during T=1 exchange";
+			text = L"Card error during T=1 exchange";
 			break;
 
 		case 0xBE:
-			text = "Wrong APDU command length";
+			text = L"Wrong APDU command length";
 			break;
 
 		case 0xE0:
-			text = "Slot busy";
+			text = L"Slot busy";
 			break;
 
 		case 0xEF:
-			text = "PIN cancelled";
+			text = L"PIN cancelled";
 			break;
 
 		case 0xF0:
-			text = "PIN timeout";
+			text = L"PIN timeout";
 			break;
 
 		case 0xF2:
-			text = "Busy with autosequence";
+			text = L"Busy with autosequence";
 			break;
 
 		case 0xF3:
-			text = "Deactivated protocol";
+			text = L"Deactivated protocol";
 			break;
 
 		case 0xF4:
-			text = "Procedure byte conflict";
+			text = L"Procedure byte conflict";
 			break;
 
 		case 0xF5:
-			text = "Class not supported";
+			text = L"Class not supported";
 			break;
 
 		case 0xF6:
-			text = "Protocol not supported";
+			text = L"Protocol not supported";
 			break;
 
 		case 0xF7:
-			text = "Invalid ATR checksum byte (TCK)";
+			text = L"Invalid ATR checksum byte (TCK)";
 			break;
 
 		case 0xF8:
-			text = "Invalid ATR first byte";
+			text = L"Invalid ATR first byte";
 			break;
 
 		case 0xFB:
-			text = "Hardware error";
+			text = L"Hardware error";
 			break;
 
 		case 0xFC:
-			text = "Overrun error";
+			text = L"Overrun error";
 			break;
 
 		case 0xFD:
-			text = "Parity error during exchange";
+			text = L"Parity error during exchange";
 			break;
 
 		case 0xFE:
-			text = "Card absent or mute";
+			text = L"Card absent or mute";
 			break;
 
 		case 0xFF:
-			text = "Activity aborted by Host";
+			text = L"Activity aborted by Host";
 			break;
 
 		default:
@@ -644,13 +646,16 @@ void ccid_error(int error, const char *file, int line, const char *function)
 			else
 				(void)snprintf(var_text, sizeof(var_text),
 					"Unknown CCID error: 0x%02X", error);
-#endif
-
 			text = var_text;
+#else
+			text = L"Unknown CCID error";
+#endif
 			break;
 	}
 #ifndef UEFI_DRIVER
 	log_msg(PCSC_LOG_ERROR, "%s:%d:%s %s", file, line, function, text);
+#else
+	DEBUG((PCSC_LOG_ERROR, "ERROR CCID: %s\n", text));
 #endif
 
 #endif
