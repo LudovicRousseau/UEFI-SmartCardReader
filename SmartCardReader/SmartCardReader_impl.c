@@ -67,10 +67,12 @@ update_state(
       UsbCcidDevice->State = SCARD_ACTIVE;
       break;
     case CCID_ICC_PRESENT_INACTIVE:
+      Log1(PCSC_LOG_DEBUG, "Card inactive");
       UsbCcidDevice->State = SCARD_INACTIVE;
       UsbCcidDevice->AtrLength = 0;
       break;
     case CCID_ICC_ABSENT:
+      Log1(PCSC_LOG_DEBUG, "Card absent");
       UsbCcidDevice->State = SCARD_ABSENT;
       UsbCcidDevice->AtrLength = 0;
       break;
