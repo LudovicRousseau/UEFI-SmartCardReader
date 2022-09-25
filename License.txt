@@ -27,9 +27,10 @@ POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
-Files reader.h, ifdhandler.h, misc.h, pcsclite.h and wintypes.h are from
-the pcsc-lite project https://pcsclite.apdu.fr/
-and are copyrighted by:
+Files SmartCardReader/reader.h, SmartCardReader/ifdhandler.h,
+SmartCardReader/misc.h, SmartCardReader/pcsclite.h and
+SmartCardReader/wintypes.h are from the pcsc-lite project
+https://pcsclite.apdu.fr/ and are copyrighted by:
 - Ludovic Rousseau <ludovic.rousseau@free.fr>
 - David Corcoran <corcoran@musclecard.com>
 - Damien Sauveron <damien.sauveron@labri.fr>
@@ -64,7 +65,7 @@ and are copyrighted by:
 
 ---
 
-Files in directory libccid/ are from the CCID project
+Files in directory SmartCardReader/libccid/ are from the CCID project
 https://ccid.apdu.fr/ and are copyrighted by:
 - Ludovic Rousseau <ludovic.rousseau@free.fr>
 - Olaf Kirch <okir@suse.de>
