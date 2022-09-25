@@ -491,7 +491,7 @@ SmartCardReaderDriverBindingStart (
     .SCardConnect = SCardConnect,
     .SCardDisconnect = SCardDisconnect,
     .SCardStatus = SCardStatus,
-    .SCardTransmit =SCardTransmit,
+    .SCardTransmit = SCardTransmit,
     .SCardControl = SCardControl,
     .SCardGetAttrib = SCardGetAttrib
   };
