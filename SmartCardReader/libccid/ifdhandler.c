@@ -35,6 +35,10 @@
 #include <arpa/inet.h>
 #endif
 
+#ifndef UEFI_DRIVER
+#include "parser.h"
+#endif
+
 #include "misc.h"
 #include <pcsclite.h>
 #include <ifdhandler.h>
@@ -48,8 +52,9 @@
 #include "commands.h"
 #include "towitoko/atr.h"
 #include "towitoko/pps.h"
-#include "parser.h"
+#ifndef UEFI_DRIVER
 #include "strlcpycat.h"
+#endif
 
 #ifdef HAVE_PTHREAD
 #include <pthread.h>
@@ -135,10 +140,14 @@ static RESPONSECODE CreateChannelByNameOrChannel(DWORD Lun,
 	CcidSlots[reader_index].bPowerFlags = POWERFLAGS_RAZ;
 
 	/* reader name */
+#ifdef UEFI_DRIVER
+	CcidSlots[reader_index].readerName = NULL;
+#else
 	if (lpcDevice)
 		CcidSlots[reader_index].readerName = strdup(lpcDevice);
 	else
 		CcidSlots[reader_index].readerName = strdup("no name");
+#endif
 
 	/* init T=1 structure just in case */
 	t1_init(&CcidSlots[reader_index].t1, reader_index);
@@ -304,7 +313,7 @@ EXTERNAL RESPONSECODE IFDHCloseChannel(DWORD Lun)
 } /* IFDHCloseChannel */
 
 
-#if !defined(TWIN_SERIAL)
+#if !defined(TWIN_SERIAL) && !defined(UEFI_DRIVER)
 static RESPONSECODE IFDHPolling(DWORD Lun, int timeout)
 {
 	int reader_index;
@@ -514,6 +523,7 @@ EXTERNAL RESPONSECODE IFDHGetCapabilities(DWORD Lun, DWORD Tag,
 			}
 			break;
 
+#ifndef UEFI_DRIVER
 		case SCARD_ATTR_VENDOR_NAME:
 			{
 				const char *sIFD_iManufacturer = get_ccid_descriptor(reader_index) -> sIFD_iManufacturer;
@@ -530,6 +540,7 @@ EXTERNAL RESPONSECODE IFDHGetCapabilities(DWORD Lun, DWORD Tag,
 				}
 			}
 			break;
+#endif
 
 		case SCARD_ATTR_MAXINPUT:
 			*Length = sizeof(uint32_t);
@@ -537,7 +548,7 @@ EXTERNAL RESPONSECODE IFDHGetCapabilities(DWORD Lun, DWORD Tag,
 				*(uint32_t *)Value = get_ccid_descriptor(reader_index) -> dwMaxCCIDMessageLength -10;
 			break;
 
-#if !defined(TWIN_SERIAL)
+#if !defined(TWIN_SERIAL) && !defined(UEFI_DRIVER)
 		case TAG_IFD_POLLING_THREAD_WITH_TIMEOUT:
 			{
 				_ccid_descriptor *ccid_desc;
@@ -613,6 +624,7 @@ EXTERNAL RESPONSECODE IFDHGetCapabilities(DWORD Lun, DWORD Tag,
 			break;
 #endif
 
+#ifndef UEFI_DRIVER
 		case SCARD_ATTR_VENDOR_IFD_SERIAL_NO:
 			{
 				_ccid_descriptor *ccid_desc;
@@ -630,6 +642,7 @@ EXTERNAL RESPONSECODE IFDHGetCapabilities(DWORD Lun, DWORD Tag,
 				}
 			}
 			break;
+#endif
 
 #if !defined(TWIN_SERIAL)
 		case SCARD_ATTR_CHANNEL_ID:
@@ -1213,7 +1226,11 @@ EXTERNAL RESPONSECODE IFDHPowerICC(DWORD Lun, DWORD Action,
 	if (-1 == (reader_index = LunToReaderIndex(Lun)))
 		return IFD_COMMUNICATION_ERROR;
 
+#ifdef UEFI_DRIVER
+	DEBUG_INFO4("action: %a, %s (lun: " DWORD_X ")",
+#else
 	DEBUG_INFO4("action: %s, %s (lun: " DWORD_X ")",
+#endif
 		actions[Action-IFD_POWER_UP], CcidSlots[reader_index].readerName, Lun);
 
 	switch (Action)
@@ -1368,6 +1385,7 @@ EXTERNAL RESPONSECODE IFDHTransmitToICC(DWORD Lun, SCARD_IO_HEADER SendPci,
 	DEBUG_INFO3("%s (lun: " DWORD_X ")", CcidSlots[reader_index].readerName,
 		Lun);
 
+#ifndef UEFI_DRIVER
 	/* special APDU for the Kobil IDToken (CLASS = 0xFF) */
 	if (KOBIL_IDTOKEN == ccid_descriptor -> readerID)
 	{
@@ -1418,6 +1436,7 @@ EXTERNAL RESPONSECODE IFDHTransmitToICC(DWORD Lun, SCARD_IO_HEADER SendPci,
 		}
 
 	}
+#endif
 
 	/* Pseudo-APDU as defined in PC/SC v2 part 10 supplement document
 	 * CLA=0xFF, INS=0xC2, P1=0x01 */
@@ -2063,6 +2082,7 @@ CcidDesc *get_ccid_slot(unsigned int reader_index)
 
 void init_driver(void)
 {
+#ifndef UEFI_DRIVER
 	char infofile[FILENAME_MAX];
 	char *e;
 	int rv;
@@ -2131,6 +2151,10 @@ void init_driver(void)
 			PowerOnVoltage = VOLTAGE_AUTO;
 			break;
 	}
+#else
+	/* full debug */
+	LogLevel = DEBUG_LEVEL_CRITICAL | DEBUG_LEVEL_INFO | DEBUG_LEVEL_PERIODIC | DEBUG_LEVEL_COMM;
+#endif
 
 	/* initialise the Lun to reader_index mapping */
 	InitReaderIndex();

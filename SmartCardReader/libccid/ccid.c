@@ -602,8 +602,12 @@ void ccid_error(int log_level, int error, const char *file, int line,
 	const char *function)
 {
 #ifndef NO_LOG
+#ifdef UEFI_DRIVER
+	const short unsigned int *text;
+#else
 	const char *text;
 	char var_text[30];
+#endif
 
 	switch (error)
 	{
@@ -708,6 +712,9 @@ void ccid_error(int log_level, int error, const char *file, int line,
 			break;
 
 		default:
+#ifdef UEFI_DRIVER
+			text = "Unknown CCID error";
+#else
 			if ((error >= 1) && (error <= 127))
 				(void)snprintf(var_text, sizeof(var_text), "error on byte %d",
 					error);
@@ -716,9 +723,14 @@ void ccid_error(int log_level, int error, const char *file, int line,
 					"Unknown CCID error: 0x%02X", error);
 
 			text = var_text;
+#endif
 			break;
 	}
+#ifdef UEFI_DRIVER
+	DEBUG((PCSC_LOG_ERROR, "ERROR CCID: %a\n", text));
+#else
 	log_msg(log_level, "%s:%d:%s %s", file, line, function, text);
+#endif
 #endif
 
 } /* ccid_error */

@@ -42,7 +42,11 @@ typedef struct CCID_DESC
 	t1_state_t t1;
 
 	/* reader name passed to IFDHCreateChannelByName() */
+#ifdef UEFI_DRIVER
+	CHAR16 *readerName;
+#else
 	char *readerName;
+#endif
 } CcidDesc;
 
 typedef enum {
@@ -98,6 +102,15 @@ typedef enum {
 #define WritePort WriteSerial
 #define DisconnectPort DisconnectSerial
 #include "ccid_serial.h"
+
+#elif defined(UEFI_DRIVER)
+
+#define OpenPortByName OpenUEFIByName
+#define OpenPort OpenUEFI
+#define ClosePort CloseUEFI
+#define ReadPort ReadUEFI
+#define WritePort WriteUEFI
+#include "ccid_uefi.h"
 
 #else
 

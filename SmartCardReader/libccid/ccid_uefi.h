@@ -31,12 +31,15 @@ status_t WriteUEFI(unsigned int reader_index, unsigned int length,
 	unsigned char *Buffer);
 
 status_t ReadUEFI(unsigned int reader_index, unsigned int *length,
-	/*@out@*/ unsigned char *Buffer);
+	/*@out@*/ unsigned char *Buffer, int bSeq);
 
 status_t CloseUEFI(unsigned int reader_index);
 
 int ControlUSB(int reader_index, int requesttype, int request, int value,
 	unsigned char *bytes, unsigned int size);
+
+uint8_t get_ccid_usb_bus_number(int reader_index);
+uint8_t get_ccid_usb_device_address(int reader_index);
 
 void duplicate_usb_device(unsigned int reader_index,
 	unsigned int new_reader_index);
