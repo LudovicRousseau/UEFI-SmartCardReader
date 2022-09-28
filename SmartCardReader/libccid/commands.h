@@ -17,14 +17,11 @@
 	Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
-/*
- * $Id: commands.h 6783 2013-10-24 09:36:52Z rousseau $
- */
-
 #define SIZE_GET_SLOT_STATUS 10
 #define STATUS_OFFSET 7
 #define ERROR_OFFSET 8
 #define CHAIN_PARAMETER_OFFSET 9
+#define CCID_RESPONSE_HEADER_SIZE 10
 
 RESPONSECODE CmdPowerOn(unsigned int reader_index, unsigned int * nlength,
 	/*@out@*/ unsigned char buffer[], int voltage);
@@ -40,6 +37,11 @@ RESPONSECODE SecurePINModify(unsigned int reader_index,
 RESPONSECODE CmdEscape(unsigned int reader_index,
 	const unsigned char TxBuffer[], unsigned int TxLength,
 	unsigned char RxBuffer[], unsigned int *RxLength, unsigned int timeout);
+
+RESPONSECODE CmdEscapeCheck(unsigned int reader_index,
+	const unsigned char TxBuffer[], unsigned int TxLength,
+	unsigned char RxBuffer[], unsigned int *RxLength, unsigned int timeout,
+	int mayfail);
 
 RESPONSECODE CmdPowerOff(unsigned int reader_index);
 

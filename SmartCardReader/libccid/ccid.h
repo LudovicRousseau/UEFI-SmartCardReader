@@ -17,10 +17,6 @@
 	Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
-/*
- * $Id: ccid.h 6845 2014-02-14 09:16:01Z rousseau $
- */
-
 typedef struct
 {
 	/*
@@ -75,6 +71,11 @@ typedef struct
 	char bMaxSlotIndex;
 
 	/*
+	 * Maximum number of slots which can be simultaneously busy
+	 */
+	char bMaxCCIDBusySlots;
+
+	/*
 	 * Slot in use
 	 */
 	char bCurrentSlotIndex;
@@ -95,6 +96,11 @@ typedef struct
 	 * Card protocol
 	 */
 	int cardProtocol;
+
+	/*
+	 * Reader protocols
+	 */
+	int dwProtocols;
 
 	/*
 	 * bInterfaceProtocol (CCID, ICCD-A, ICCD-B)
@@ -142,14 +148,17 @@ typedef struct
 	 */
 	struct GEMALTO_FIRMWARE_FEATURES *gemalto_firmware_features;
 
+#ifdef ENABLE_ZLP
 	/*
 	 * Zero Length Packet fixup (boolean)
 	 */
 	char zlp;
+#endif
 } _ccid_descriptor;
 
 /* Features from dwFeatures */
 #define CCID_CLASS_AUTO_CONF_ATR	0x00000002
+#define CCID_CLASS_AUTO_ACTIVATION	0x00000004
 #define CCID_CLASS_AUTO_VOLTAGE		0x00000008
 #define CCID_CLASS_AUTO_BAUD		0x00000020
 #define CCID_CLASS_AUTO_PPS_PROP	0x00000040
@@ -192,9 +201,11 @@ typedef struct
 #define GEMALTO_EZIO_CBP 0x08E634C3
 #define CARDMAN3121	0x076B3021
 #define LTC31		0x07830003
+#define C3PO_LTC31_v2 0x07830006
 #define SCR331DI	0x04E65111
 #define SCR331DINTTCOM	0x04E65120
 #define SDI010		0x04E65121
+#define SEC1210	0x04241202
 #define CHERRYXX33	0x046A0005
 #define CHERRYST2000	0x046A003E
 #define OZ776		0x0B977762
@@ -209,12 +220,32 @@ typedef struct
 #define DELLSCRK    0x413C2101
 #define DELLSK      0x413C2100
 #define KOBIL_TRIBANK	0x0D463010
-#define KOBIL_MIDENTITY_VISUAL	0x0D460D46
+#define KOBIL_MIDENTITY_VISUAL	0x0D464289
 #define VEGAALPHA   0x09820008
 #define HPSMARTCARDKEYBOARD 0x03F01024
 #define HP_CCIDSMARTCARDKEYBOARD 0x03F00036
+#define CHICONYHPSKYLABKEYBOARD 0x04F21469
 #define KOBIL_IDTOKEN 0x0D46301D
 #define FUJITSUSMARTKEYB 0x0BF81017
+#define FEITIANR502DUAL 0x096E060D
+#define MICROCHIP_SEC1100 0x04241104
+#define CHERRY_KC1000SC 0x046A00A1
+#define ElatecTWN4_CCID_CDC	0x09D80427
+#define ElatecTWN4_CCID	0x09D80428
+#define SCM_SCL011 0x04E65293
+#define HID_AVIATOR	0x076B3A21
+#define HID_OMNIKEY_5422 0x076B5422
+#define HID_OMNIKEY_3X21 0x076B3031 /* OMNIKEY 3121 or 3021 or 1021 */
+#define HID_OMNIKEY_3821 0x076B3821 /* OMNIKEY 3821 */
+#define HID_OMNIKEY_5427CK 0x076B5427 /* OMNIKEY 5427 CK */
+#define HID_OMNIKEY_6121 0x076B6632 /* OMNIKEY 6121 */
+#define CHERRY_XX44	0x046A00A7 /* Cherry Smart Terminal xx44 */
+#define FUJITSU_D323 0x0BF81024 /* Fujitsu Smartcard Reader D323 */
+#define IDENTIV_uTrust3700F		0x04E65790
+#define IDENTIV_uTrust3701F		0x04E65791
+#define IDENTIV_uTrust4701F		0x04E65724
+#define BIT4ID_MINILECTOR		0x25DD3111
+#define SAFENET_ETOKEN_5100		0x05290620
 
 #define VENDOR_GEMALTO 0x08E6
 #define GET_VENDOR(readerID) ((readerID >> 16) & 0xFFFF)
@@ -233,12 +264,12 @@ typedef struct
 /*
  * Possible values :
  * 3 -> 1.8V, 3V, 5V
- * 2 -> 3V, 5V
- * 1 -> 5V only
+ * 2 -> 3V, 5V, 1.8V
+ * 1 -> 5V, 1.8V, 3V
  * 0 -> automatic (selection made by the reader)
  */
 /*
- * To be safe we default to 5V
+ * The default is to start at 5V
  * otherwise we would have to parse the ATR and get the value of TAi (i>2) when
  * in T=15
  */
@@ -249,11 +280,12 @@ typedef struct
 
 int ccid_open_hack_pre(unsigned int reader_index);
 int ccid_open_hack_post(unsigned int reader_index);
-void ccid_error(int error, const char *file, int line, const char *function);
+void ccid_error(int log_level, int error, const char *file, int line,
+	const char *function);
 _ccid_descriptor *get_ccid_descriptor(unsigned int reader_index);
 
 /* convert a 4 byte integer in USB format into an int */
-#define dw2i(a, x) (unsigned int)((((((a[x+3] << 8) + a[x+2]) << 8) + a[x+1]) << 8) + a[x])
+#define dw2i(a, x) (unsigned int)(((((((unsigned int)a[x+3] << 8) + (unsigned int)a[x+2]) << 8) + (unsigned int)a[x+1]) << 8) + (unsigned int)a[x])
 
 /* all the data rates specified by ISO 7816-3 Fi/Di tables */
 #define ISO_DATA_RATES 10753, 14337, 15625, 17204, \

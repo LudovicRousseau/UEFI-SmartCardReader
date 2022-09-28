@@ -1,26 +1,22 @@
 /*
-    commands.c: Commands sent to the card
-    Copyright (C) 2003-2010   Ludovic Rousseau
-    Copyright (C) 2005 Martin Paljak
+	commands.c: Commands sent to the card
+	Copyright (C) 2003-2010   Ludovic Rousseau
+	Copyright (C) 2005 Martin Paljak
 
-    This library is free software; you can redistribute it and/or
-    modify it under the terms of the GNU Lesser General Public
-    License as published by the Free Software Foundation; either
-    version 2.1 of the License, or (at your option) any later version.
+	This library is free software; you can redistribute it and/or
+	modify it under the terms of the GNU Lesser General Public
+	License as published by the Free Software Foundation; either
+	version 2.1 of the License, or (at your option) any later version.
 
-    This library is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-    Lesser General Public License for more details.
+	This library is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+	Lesser General Public License for more details.
 
 	You should have received a copy of the GNU Lesser General Public License
 	along with this library; if not, write to the Free Software Foundation,
 	Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
-
-/*
- * $Id: commands.c 6975 2014-09-04 11:33:05Z rousseau $
- */
 
 #include <config.h>
 
@@ -48,6 +44,7 @@
 #include "defs.h"
 #include "ccid_ifdhandler.h"
 #include "debug.h"
+#include "utils.h"
 
 /* All the pinpad readers I used are more or less bogus
  * I use code to change the user command and make the firmware happy */
@@ -58,15 +55,8 @@
  * of 260 bytes since the driver check this value */
 #define BOGUS_SCM_FIRMWARE_FOR_dwMaxCCIDMessageLength
 
-#define max( a, b )   ( ( ( a ) > ( b ) ) ? ( a ) : ( b ) )
 #ifndef offsetof
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
-#endif
-
-#ifndef BSWAP_16
-#define BSWAP_8(x)  ((x) & 0xff)
-#define BSWAP_16(x) ((BSWAP_8(x) << 8) | BSWAP_8((x) >> 8))
-#define BSWAP_32(x) ((BSWAP_16(x) << 16) | BSWAP_16((x) >> 16))
 #endif
 
 #define CHECK_STATUS(res) \
@@ -105,9 +95,11 @@ RESPONSECODE CmdPowerOn(unsigned int reader_index, unsigned int * nlength,
 	unsigned char buffer[], int voltage)
 {
 	unsigned char cmd[10];
+	int bSeq;
 	status_t res;
 	int length, count = 1;
 	unsigned int atr_len;
+	int init_voltage;
 	RESPONSECODE return_value = IFD_SUCCESS;
 	_ccid_descriptor *ccid_descriptor = get_ccid_descriptor(reader_index);
 
@@ -178,7 +170,7 @@ RESPONSECODE CmdPowerOn(unsigned int reader_index, unsigned int * nlength,
 
 			/* Status Information? */
 			if (0x40 == tmp[0])
-				ccid_error(tmp[2], __FILE__, __LINE__, __FUNCTION__);
+				ccid_error(PCSC_LOG_ERROR, tmp[2], __FILE__, __LINE__, __FUNCTION__);
 			return IFD_COMMUNICATION_ERROR;
 		}
 
@@ -194,36 +186,44 @@ RESPONSECODE CmdPowerOn(unsigned int reader_index, unsigned int * nlength,
 	/* store length of buffer[] */
 	length = *nlength;
 
-	if (ccid_descriptor->dwFeatures & CCID_CLASS_AUTO_VOLTAGE)
+	if ((ccid_descriptor->dwFeatures & CCID_CLASS_AUTO_VOLTAGE)
+		|| (ccid_descriptor->dwFeatures & CCID_CLASS_AUTO_ACTIVATION))
 		voltage = 0;	/* automatic voltage selection */
 	else
 	{
 		int bVoltageSupport = ccid_descriptor->bVoltageSupport;
 
+check_again:
 		if ((1 == voltage) && !(bVoltageSupport & 1))
 		{
-			DEBUG_INFO1("5V requested but not support by reader");
+			DEBUG_INFO1("5V requested but not supported by reader");
 			voltage = 2;	/* 3V */
 		}
 
 		if ((2 == voltage) && !(bVoltageSupport & 2))
 		{
-			DEBUG_INFO1("3V requested but not support by reader");
+			DEBUG_INFO1("3V requested but not supported by reader");
 			voltage = 3;	/* 1.8V */
 		}
 
 		if ((3 == voltage) && !(bVoltageSupport & 4))
 		{
-			DEBUG_INFO1("1.8V requested but not support by reader");
-			voltage = 0;	/* auto */
+			DEBUG_INFO1("1.8V requested but not supported by reader");
+			voltage = 1;	/* 5V */
+
+			/* do not (infinite) loop if bVoltageSupport == 0 */
+			if (bVoltageSupport)
+				goto check_again;
 		}
 	}
+	init_voltage = voltage;
 
 again:
+	bSeq = (*ccid_descriptor->pbSeq)++;
 	cmd[0] = 0x62; /* IccPowerOn */
 	cmd[1] = cmd[2] = cmd[3] = cmd[4] = 0;	/* dwLength */
 	cmd[5] = ccid_descriptor->bCurrentSlotIndex;	/* slot number */
-	cmd[6] = (*ccid_descriptor->pbSeq)++;
+	cmd[6] = bSeq;
 	cmd[7] = voltage;
 	cmd[8] = cmd[9] = 0; /* RFU */
 
@@ -234,10 +234,10 @@ again:
 	/* needed if we go back after a switch to ISO mode */
 	*nlength = length;
 
-	res = ReadPort(reader_index, nlength, buffer);
+	res = ReadPort(reader_index, nlength, buffer, bSeq);
 	CHECK_STATUS(res)
 
-	if (*nlength < STATUS_OFFSET+1)
+	if (*nlength < CCID_RESPONSE_HEADER_SIZE)
 	{
 		DEBUG_CRITICAL2("Not enough data received: %d bytes", *nlength);
 		return IFD_COMMUNICATION_ERROR;
@@ -245,7 +245,7 @@ again:
 
 	if (buffer[STATUS_OFFSET] & CCID_COMMAND_FAILED)
 	{
-		ccid_error(buffer[ERROR_OFFSET], __FILE__, __LINE__, __FUNCTION__);    /* bError */
+		ccid_error(PCSC_LOG_ERROR, buffer[ERROR_OFFSET], __FILE__, __LINE__, __FUNCTION__);	/* bError */
 
 		if (0xBB == buffer[ERROR_OFFSET] &&	/* Protocol error in EMV mode */
 			((GEMPC433 == ccid_descriptor->readerID)
@@ -266,17 +266,24 @@ again:
 				DEBUG_CRITICAL("Can't set reader in ISO mode");
 		}
 
-		/* continue with 3 volts and 5 volts */
-		if (voltage > 1)
+		/* continue with other voltage values */
+		if (voltage)
 		{
 #ifndef NO_LOG
-			const char *voltage_code[] = { "auto", "5V", "3V", "1.8V" };
+			const char *voltage_code[] = { "1.8V", "5V", "3V", "1.8V" };
 #endif
 
 			DEBUG_INFO3("Power up with %s failed. Try with %s.",
 				voltage_code[voltage], voltage_code[voltage-1]);
 			voltage--;
-			goto again;
+
+			/* loop from 5V to 1.8V */
+			if (0 == voltage)
+				voltage = 3;
+
+			/* continue until we tried every values */
+			if (voltage != init_voltage)
+				goto again;
 		}
 
 		return IFD_COMMUNICATION_ERROR;
@@ -284,11 +291,12 @@ again:
 
 	/* extract the ATR */
 	atr_len = dw2i(buffer, 1);	/* ATR length */
-	if (atr_len > *nlength)
-		atr_len = *nlength;
+	if (atr_len > *nlength - 10)
+		atr_len = *nlength - 10;
 	else
 		*nlength = atr_len;
 
+	/* the buffer length should be 10 + MAX_ATR_SIZE */
 	memmove(buffer, buffer+10, atr_len);
 
 	return return_value;
@@ -312,6 +320,8 @@ RESPONSECODE SecurePINVerify(unsigned int reader_index,
 	RESPONSECODE ret;
 	status_t res;
 
+	uint32_t ulDataLength;
+
 	pvs = (PIN_VERIFY_STRUCTURE *)TxBuffer;
 	cmd[0] = 0x69;	/* Secure */
 	cmd[5] = ccid_descriptor->bCurrentSlotIndex;	/* slot number */
@@ -329,15 +339,16 @@ RESPONSECODE SecurePINVerify(unsigned int reader_index,
 
 	/* On little endian machines we are all set. */
 	/* If on big endian machine and caller is using host byte order */
-	if ((pvs->ulDataLength + 19  == TxLength) &&
-		(bei2i((unsigned char*)(&pvs->ulDataLength)) == pvs->ulDataLength))
+	ulDataLength = get_U32(&pvs->ulDataLength);
+	if ((ulDataLength + 19 == TxLength) &&
+		(bei2i((unsigned char*)(&pvs->ulDataLength)) == ulDataLength))
 	{
 		DEBUG_INFO1("Reversing order from big to little endian");
 		/* If ulDataLength is big endian, assume others are too */
 		/* reverse the byte order for 3 fields */
-		pvs->wPINMaxExtraDigit = BSWAP_16(pvs->wPINMaxExtraDigit);
-		pvs->wLangId = BSWAP_16(pvs->wLangId);
-		pvs->ulDataLength = BSWAP_32(pvs->ulDataLength);
+		p_bswap_16(&pvs->wPINMaxExtraDigit);
+		p_bswap_16(&pvs->wLangId);
+		p_bswap_32(&pvs->ulDataLength);
 	}
 	/* At this point we now have the above 3 variables in little endian */
 
@@ -379,6 +390,18 @@ RESPONSECODE SecurePINVerify(unsigned int reader_index,
 			TxBuffer[7] = 0x02;	/* validation key pressed */
 		}
 
+	}
+
+	if ((VENDOR_GEMALTO == GET_VENDOR(ccid_descriptor->readerID))
+		&& (ccid_descriptor->gemalto_firmware_features))
+	{
+		int bEntryValidationCondition = ccid_descriptor->gemalto_firmware_features->bEntryValidationCondition;
+		if (TxBuffer[7] & ~bEntryValidationCondition)
+		{
+			DEBUG_INFO2("Correct bEntryValidationCondition (was 0x%02X)",
+				TxBuffer[7]);
+			TxBuffer[7] &= bEntryValidationCondition;
+		}
 	}
 
 	if ((DELLSCRK == ccid_descriptor->readerID)
@@ -645,6 +668,7 @@ RESPONSECODE SecurePINModify(unsigned int reader_index,
 	int bNumberMessage = 0; /* for GemPC Pinpad */
 	int gemalto_modify_pin_bug;
 #endif
+	uint32_t ulDataLength;
 
 	pms = (PIN_MODIFY_STRUCTURE *)TxBuffer;
 	cmd[0] = 0x69;	/* Secure */
@@ -663,15 +687,16 @@ RESPONSECODE SecurePINModify(unsigned int reader_index,
 
 	/* On little endian machines we are all set. */
 	/* If on big endian machine and caller is using host byte order */
-	if ((pms->ulDataLength + 24  == TxLength) &&
-		(bei2i((unsigned char*)(&pms->ulDataLength)) == pms->ulDataLength))
+	ulDataLength = get_U32(&pms->ulDataLength);
+	if ((ulDataLength + 24 == TxLength) &&
+		(bei2i((unsigned char*)(&pms->ulDataLength)) == ulDataLength))
 	{
 		DEBUG_INFO1("Reversing order from big to little endian");
 		/* If ulDataLength is big endian, assume others are too */
 		/* reverse the byte order for 3 fields */
-		pms->wPINMaxExtraDigit = BSWAP_16(pms->wPINMaxExtraDigit);
-		pms->wLangId = BSWAP_16(pms->wLangId);
-		pms->ulDataLength = BSWAP_32(pms->ulDataLength);
+		p_bswap_16(&pms->wPINMaxExtraDigit);
+		p_bswap_16(&pms->wLangId);
+		p_bswap_32(&pms->ulDataLength);
 	}
 	/* At this point we now have the above 3 variables in little endian */
 
@@ -736,6 +761,18 @@ RESPONSECODE SecurePINModify(unsigned int reader_index,
 		}
 	}
 
+	if ((VENDOR_GEMALTO == GET_VENDOR(ccid_descriptor->readerID))
+		&& (ccid_descriptor->gemalto_firmware_features))
+	{
+		int bEntryValidationCondition = ccid_descriptor->gemalto_firmware_features->bEntryValidationCondition;
+		if (TxBuffer[10] & ~bEntryValidationCondition)
+		{
+			DEBUG_INFO2("Correct bEntryValidationCondition (was 0x%02X)",
+				TxBuffer[10]);
+			TxBuffer[10] &= bEntryValidationCondition;
+		}
+	}
+
 	gemalto_modify_pin_bug = has_gemalto_modify_pin_bug(ccid_descriptor);
 	if (gemalto_modify_pin_bug)
 	{
@@ -751,6 +788,18 @@ RESPONSECODE SecurePINModify(unsigned int reader_index,
 			DEBUG_INFO2("Correct bNumberMessage for GemPC Pinpad (was %d)",
 				TxBuffer[11]);
 			TxBuffer[11] = 0x03; /* 3 messages */
+		}
+	}
+
+	/* Bug workaround for Cherry KC 1000 SC */
+	if (CHERRY_KC1000SC == ccid_descriptor->readerID)
+	{
+		/* The reader rejects bNumberMessage 0x00 in a PIN modify
+		 * command. Change it to 0xff which is accepted. */
+		if (0x00 == TxBuffer[11])
+		{
+			DEBUG_INFO1("Correct bNumberMessage for Cherry KC 1000 SC (was 0)");
+			TxBuffer[11] = 0xff;
 		}
 	}
 #endif
@@ -884,7 +933,23 @@ RESPONSECODE CmdEscape(unsigned int reader_index,
 	const unsigned char TxBuffer[], unsigned int TxLength,
 	unsigned char RxBuffer[], unsigned int *RxLength, unsigned int timeout)
 {
+	return CmdEscapeCheck(reader_index, TxBuffer, TxLength, RxBuffer, RxLength,
+		timeout, FALSE);
+} /* CmdEscape */
+
+
+/*****************************************************************************
+ *
+ *					Escape (with check of gravity)
+ *
+ ****************************************************************************/
+RESPONSECODE CmdEscapeCheck(unsigned int reader_index,
+	const unsigned char TxBuffer[], unsigned int TxLength,
+	unsigned char RxBuffer[], unsigned int *RxLength, unsigned int timeout,
+	int mayfail)
+{
 	unsigned char *cmd_in, *cmd_out;
+	int bSeq;
 	status_t res;
 	unsigned int length_in, length_out;
 	RESPONSECODE return_value = IFD_SUCCESS;
@@ -915,10 +980,11 @@ again:
 		goto end;
 	}
 
+	bSeq = (*ccid_descriptor->pbSeq)++;
 	cmd_in[0] = 0x6B; /* PC_to_RDR_Escape */
 	i2dw(length_in - 10, cmd_in+1);	/* dwLength */
 	cmd_in[5] = ccid_descriptor->bCurrentSlotIndex;	/* slot number */
-	cmd_in[6] = (*ccid_descriptor->pbSeq)++;
+	cmd_in[6] = bSeq;
 	cmd_in[7] = cmd_in[8] = cmd_in[9] = 0; /* RFU */
 
 	/* copy the command */
@@ -938,7 +1004,7 @@ again:
 
 time_request:
 	length_out = 10 + *RxLength;
-	res = ReadPort(reader_index, &length_out, cmd_out);
+	res = ReadPort(reader_index, &length_out, cmd_out, bSeq);
 
 	/* replay the command if NAK
 	 * This (generally) happens only for the first command sent to the reader
@@ -960,7 +1026,7 @@ time_request:
 		goto end;
 	}
 
-	if (length_out < STATUS_OFFSET+1)
+	if (length_out < CCID_RESPONSE_HEADER_SIZE)
 	{
 		free(cmd_out);
 		DEBUG_CRITICAL2("Not enough data received: %d bytes", length_out);
@@ -976,14 +1042,19 @@ time_request:
 
 	if (cmd_out[STATUS_OFFSET] & CCID_COMMAND_FAILED)
 	{
-		ccid_error(cmd_out[ERROR_OFFSET], __FILE__, __LINE__, __FUNCTION__);    /* bError */
+		/* mayfail: the error may be expected and not fatal */
+		ccid_error(mayfail ? PCSC_LOG_INFO : PCSC_LOG_ERROR,
+			cmd_out[ERROR_OFFSET], __FILE__, __LINE__, __FUNCTION__);	/* bError */
 		return_value = IFD_COMMUNICATION_ERROR;
 	}
 
 	/* copy the response */
 	length_out = dw2i(cmd_out, 1);
 	if (length_out > *RxLength)
+	{
 		length_out = *RxLength;
+		return_value = IFD_ERROR_INSUFFICIENT_BUFFER;
+	}
 	*RxLength = length_out;
 	memcpy(RxBuffer, &cmd_out[10], length_out);
 
@@ -994,7 +1065,7 @@ end:
 		ccid_descriptor -> readTimeout = old_read_timeout;
 
 	return return_value;
-} /* Escape */
+} /* EscapeCheck */
 
 
 /*****************************************************************************
@@ -1005,6 +1076,7 @@ end:
 RESPONSECODE CmdPowerOff(unsigned int reader_index)
 {
 	unsigned char cmd[10];
+	int bSeq;
 	status_t res;
 	unsigned int length;
 	RESPONSECODE return_value = IFD_SUCCESS;
@@ -1057,20 +1129,21 @@ RESPONSECODE CmdPowerOff(unsigned int reader_index)
 	}
 #endif
 
+	bSeq = (*ccid_descriptor->pbSeq)++;
 	cmd[0] = 0x63; /* IccPowerOff */
 	cmd[1] = cmd[2] = cmd[3] = cmd[4] = 0;	/* dwLength */
 	cmd[5] = ccid_descriptor->bCurrentSlotIndex;	/* slot number */
-	cmd[6] = (*ccid_descriptor->pbSeq)++;
+	cmd[6] = bSeq;
 	cmd[7] = cmd[8] = cmd[9] = 0; /* RFU */
 
 	res = WritePort(reader_index, sizeof(cmd), cmd);
 	CHECK_STATUS(res)
 
 	length = sizeof(cmd);
-	res = ReadPort(reader_index, &length, cmd);
+	res = ReadPort(reader_index, &length, cmd, bSeq);
 	CHECK_STATUS(res)
 
-	if (length < STATUS_OFFSET+1)
+	if (length < CCID_RESPONSE_HEADER_SIZE)
 	{
 		DEBUG_CRITICAL2("Not enough data received: %d bytes", length);
 		return IFD_COMMUNICATION_ERROR;
@@ -1078,7 +1151,7 @@ RESPONSECODE CmdPowerOff(unsigned int reader_index)
 
 	if (cmd[STATUS_OFFSET] & CCID_COMMAND_FAILED)
 	{
-		ccid_error(cmd[ERROR_OFFSET], __FILE__, __LINE__, __FUNCTION__);    /* bError */
+		ccid_error(PCSC_LOG_ERROR, cmd[ERROR_OFFSET], __FILE__, __LINE__, __FUNCTION__);	/* bError */
 		return_value = IFD_COMMUNICATION_ERROR;
 	}
 
@@ -1094,6 +1167,7 @@ RESPONSECODE CmdPowerOff(unsigned int reader_index)
 RESPONSECODE CmdGetSlotStatus(unsigned int reader_index, unsigned char buffer[])
 {
 	unsigned char cmd[10];
+	int bSeq;
 	status_t res;
 	unsigned int length;
 	RESPONSECODE return_value = IFD_SUCCESS;
@@ -1143,7 +1217,7 @@ again_status:
 	if (PROTOCOL_ICCD_B == ccid_descriptor->bInterfaceProtocol)
 	{
 		int r;
-		unsigned char buffer_tmp[3];
+		unsigned char buffer_tmp[3] = {0, 2, 0};
 
 		/* SlotStatus */
 		r = ControlUSB(reader_index, 0xA1, 0x81, 0, buffer_tmp,
@@ -1175,20 +1249,26 @@ again_status:
 	}
 #endif
 
+#ifdef __APPLE__
+	if (MICROCHIP_SEC1100 == ccid_descriptor->readerID)
+		InterruptRead(reader_index, 10);
+#endif
+
+	bSeq = (*ccid_descriptor->pbSeq)++;
 	cmd[0] = 0x65; /* GetSlotStatus */
 	cmd[1] = cmd[2] = cmd[3] = cmd[4] = 0;	/* dwLength */
 	cmd[5] = ccid_descriptor->bCurrentSlotIndex;	/* slot number */
-	cmd[6] = (*ccid_descriptor->pbSeq)++;
+	cmd[6] = bSeq;
 	cmd[7] = cmd[8] = cmd[9] = 0; /* RFU */
 
 	res = WritePort(reader_index, sizeof(cmd), cmd);
 	CHECK_STATUS(res)
 
 	length = SIZE_GET_SLOT_STATUS;
-	res = ReadPort(reader_index, &length, buffer);
+	res = ReadPort(reader_index, &length, buffer, bSeq);
 	CHECK_STATUS(res)
 
-	if (length < STATUS_OFFSET+1)
+	if (length < CCID_RESPONSE_HEADER_SIZE)
 	{
 		DEBUG_CRITICAL2("Not enough data received: %d bytes", length);
 		return IFD_COMMUNICATION_ERROR;
@@ -1199,7 +1279,7 @@ again_status:
 		&& (buffer[ERROR_OFFSET] != 0xFE))
 	{
 		return_value = IFD_COMMUNICATION_ERROR;
-		ccid_error(buffer[ERROR_OFFSET], __FILE__, __LINE__, __FUNCTION__);    /* bError */
+		ccid_error(PCSC_LOG_ERROR, buffer[ERROR_OFFSET], __FILE__, __LINE__, __FUNCTION__);	/* bError */
 	}
 
 	return return_value;
@@ -1326,7 +1406,8 @@ RESPONSECODE CCID_Transmit(unsigned int reader_index, unsigned int tx_length,
 	cmd[8] = rx_length & 0xFF;	/* Expected length, in character mode only */
 	cmd[9] = (rx_length >> 8) & 0xFF;
 
-	memcpy(cmd+10, tx_buffer, tx_length);
+	if (tx_buffer)
+		memcpy(cmd+10, tx_buffer, tx_length);
 
 	ret = WritePort(reader_index, 10+tx_length, cmd);
 	CHECK_STATUS(ret)
@@ -1428,7 +1509,7 @@ time_request_ICCD_B:
 
 			case 0x40:
 				/* Status Information */
-				ccid_error(rx_buffer[2], __FILE__, __LINE__, __FUNCTION__);
+				ccid_error(PCSC_LOG_ERROR, rx_buffer[2], __FILE__, __LINE__, __FUNCTION__);
 				return IFD_COMMUNICATION_ERROR;
 
 			case 0x80:
@@ -1473,13 +1554,13 @@ time_request_ICCD_B:
 
 time_request:
 	length = sizeof(cmd);
-	ret = ReadPort(reader_index, &length, cmd);
+	ret = ReadPort(reader_index, &length, cmd, -1);
 
 	/* restore the original value of read timeout */
 	ccid_descriptor -> readTimeout = old_timeout;
 	CHECK_STATUS(ret)
 
-	if (length < STATUS_OFFSET+1)
+	if (length < CCID_RESPONSE_HEADER_SIZE)
 	{
 		DEBUG_CRITICAL2("Not enough data received: %d bytes", length);
 		return IFD_COMMUNICATION_ERROR;
@@ -1487,12 +1568,12 @@ time_request:
 
 	if (cmd[STATUS_OFFSET] & CCID_COMMAND_FAILED)
 	{
-		ccid_error(cmd[ERROR_OFFSET], __FILE__, __LINE__, __FUNCTION__);    /* bError */
+		ccid_error(PCSC_LOG_ERROR, cmd[ERROR_OFFSET], __FILE__, __LINE__, __FUNCTION__);	/* bError */
 		switch (cmd[ERROR_OFFSET])
 		{
 			case 0xEF:	/* cancel */
 				if (*rx_length < 2)
-					return IFD_COMMUNICATION_ERROR;
+					return IFD_ERROR_INSUFFICIENT_BUFFER;
 				rx_buffer[0]= 0x64;
 				rx_buffer[1]= 0x01;
 				*rx_length = 2;
@@ -1500,7 +1581,7 @@ time_request:
 
 			case 0xF0:	/* timeout */
 				if (*rx_length < 2)
-					return IFD_COMMUNICATION_ERROR;
+					return IFD_ERROR_INSUFFICIENT_BUFFER;
 				rx_buffer[0]= 0x64;
 				rx_buffer[1]= 0x00;
 				*rx_length = 2;
@@ -1508,6 +1589,12 @@ time_request:
 
 			case 0xFD:	/* Parity error during exchange */
 				return IFD_PARITY_ERROR;
+
+			case 0xFE:	/* Card absent or mute */
+				if (2 == (cmd[STATUS_OFFSET] & 0x02)) /* No ICC */
+					return IFD_ICC_NOT_PRESENT;
+				else
+					return IFD_COMMUNICATION_ERROR;
 
 			default:
 				return IFD_COMMUNICATION_ERROR;
@@ -1551,7 +1638,8 @@ time_request:
 		return_value = IFD_COMMUNICATION_ERROR;
 	}
 	else
-		memcpy(rx_buffer, cmd+10, length);
+		if (length)
+			memcpy(rx_buffer, cmd+10, length);
 
 	/* Extended case?
 	 * Only valid for RDR_to_PC_DataBlock frames */
@@ -1808,6 +1896,9 @@ static RESPONSECODE T0ProcACK(unsigned int reader_index,
 
 	DEBUG_COMM2("Enter, is_rcv = %d", is_rcv);
 
+	if (proc_len > 0x200)
+		return IFD_COMMUNICATION_ERROR;
+
 	if (is_rcv == 1)
 	{	/* Receiving mode */
 		unsigned int remain_len;
@@ -1853,29 +1944,29 @@ static RESPONSECODE T0ProcACK(unsigned int reader_index,
 
 #ifdef O2MICRO_OZ776_PATCH
 		if((0 != remain_len) && (0 == (remain_len + 10) % 64))
-        {
+		{
 			/* special hack to avoid a command of size modulo 64
 			 * we send two commands instead */
-            ret_len = 1;
-            return_value = CCID_Transmit(reader_index, 0, *snd_buf, ret_len, 0);
-            if (return_value != IFD_SUCCESS)
-                return return_value;
-            return_value = CCID_Receive(reader_index, &ret_len, tmp_buf, NULL);
-            if (return_value != IFD_SUCCESS)
-                return return_value;
+			ret_len = 1;
+			return_value = CCID_Transmit(reader_index, 0, *snd_buf, ret_len, 0);
+			if (return_value != IFD_SUCCESS)
+				return return_value;
+			return_value = CCID_Receive(reader_index, &ret_len, tmp_buf, NULL);
+			if (return_value != IFD_SUCCESS)
+				return return_value;
 
-            ret_len = remain_len - 1;
-            return_value = CCID_Transmit(reader_index, 0, *snd_buf, ret_len, 0);
-            if (return_value != IFD_SUCCESS)
-                return return_value;
-            return_value = CCID_Receive(reader_index, &ret_len, &tmp_buf[1],
-				NULL);
-            if (return_value != IFD_SUCCESS)
-                return return_value;
+			ret_len = remain_len - 1;
+			return_value = CCID_Transmit(reader_index, 0, *snd_buf, ret_len, 0);
+			if (return_value != IFD_SUCCESS)
+				return return_value;
+			return_value = CCID_Receive(reader_index, &ret_len, &tmp_buf[1],
+					NULL);
+			if (return_value != IFD_SUCCESS)
+				return return_value;
 
-            ret_len += 1;
-        }
-        else
+			ret_len += 1;
+		}
+		else
 #endif
 		{
 			ret_len = remain_len;
@@ -1903,6 +1994,12 @@ static RESPONSECODE T0ProcACK(unsigned int reader_index,
 		return_value = CCID_Transmit(reader_index, proc_len, *snd_buf, 1, 0);
 		if (return_value != IFD_SUCCESS)
 			return return_value;
+
+		if (proc_len > *snd_len)
+		{
+			DEBUG_CRITICAL("proc_len > snd_len");
+			return IFD_COMMUNICATION_ERROR;
+		}
 
 		*snd_len -= proc_len;
 		*snd_buf += proc_len;
@@ -1953,12 +2050,7 @@ static RESPONSECODE T0ProcSW1(unsigned int reader_index,
 	in_len--;
 	(*rcv_len)++;
 
-#ifdef NO_LOG
-	(void)sw1;
-	(void)sw2;
-#else
 	DEBUG_COMM3("Exit: SW=%02X %02X", sw1, sw2);
-#endif
 
 	return return_value;
 } /* T0ProcSW1 */
@@ -2177,6 +2269,7 @@ static RESPONSECODE CmdXfrBlockCHAR_T0(unsigned int reader_index,
 
 		/* Error, unrecognized situation found */
 		DEBUG_CRITICAL2("Unrecognized Procedure byte (0x%02X) found!", *in_buf);
+		return_value = IFD_COMMUNICATION_ERROR;
 		return return_value;
 	}
 
@@ -2219,15 +2312,17 @@ RESPONSECODE SetParameters(unsigned int reader_index, char protocol,
 	unsigned int length, unsigned char buffer[])
 {
 	unsigned char cmd[10+length];	/* CCID + APDU buffer */
+	int bSeq;
 	_ccid_descriptor *ccid_descriptor = get_ccid_descriptor(reader_index);
 	status_t res;
 
 	DEBUG_COMM2("length: %d bytes", length);
 
+	bSeq = (*ccid_descriptor->pbSeq)++;
 	cmd[0] = 0x61; /* SetParameters */
 	i2dw(length, cmd+1);	/* APDU length */
 	cmd[5] = ccid_descriptor->bCurrentSlotIndex;	/* slot number */
-	cmd[6] = (*ccid_descriptor->pbSeq)++;
+	cmd[6] = bSeq;
 	cmd[7] = protocol;	/* bProtocolNum */
 	cmd[8] = cmd[9] = 0; /* RFU */
 
@@ -2237,10 +2332,10 @@ RESPONSECODE SetParameters(unsigned int reader_index, char protocol,
 	CHECK_STATUS(res)
 
 	length = sizeof(cmd);
-	res = ReadPort(reader_index, &length, cmd);
+	res = ReadPort(reader_index, &length, cmd, bSeq);
 	CHECK_STATUS(res)
 
-	if (length < STATUS_OFFSET+1)
+	if (length < CCID_RESPONSE_HEADER_SIZE)
 	{
 		DEBUG_CRITICAL2("Not enough data received: %d bytes", length);
 		return IFD_COMMUNICATION_ERROR;
@@ -2248,7 +2343,7 @@ RESPONSECODE SetParameters(unsigned int reader_index, char protocol,
 
 	if (cmd[STATUS_OFFSET] & CCID_COMMAND_FAILED)
 	{
-		ccid_error(cmd[ERROR_OFFSET], __FILE__, __LINE__, __FUNCTION__);    /* bError */
+		ccid_error(PCSC_LOG_ERROR, cmd[ERROR_OFFSET], __FILE__, __LINE__, __FUNCTION__);	/* bError */
 		if (0x00 == cmd[ERROR_OFFSET])	/* command not supported */
 			return IFD_NOT_SUPPORTED;
 		else
@@ -2289,7 +2384,7 @@ static void i2dw(int value, unsigned char buffer[])
 
 /*****************************************************************************
 *
-*                  bei2i (big endian integer to host order interger)
+*					bei2i (big endian integer to host order interger)
 *
 ****************************************************************************/
 

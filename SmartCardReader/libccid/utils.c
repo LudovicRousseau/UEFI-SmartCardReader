@@ -1,26 +1,23 @@
 /*
-    utils.c:
-    Copyright (C) 2003-2008   Ludovic Rousseau
+	utils.c:
+	Copyright (C) 2003-2008   Ludovic Rousseau
 
-    This library is free software; you can redistribute it and/or
-    modify it under the terms of the GNU Lesser General Public
-    License as published by the Free Software Foundation; either
-    version 2.1 of the License, or (at your option) any later version.
+	This library is free software; you can redistribute it and/or
+	modify it under the terms of the GNU Lesser General Public
+	License as published by the Free Software Foundation; either
+	version 2.1 of the License, or (at your option) any later version.
 
-    This library is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-    Lesser General Public License for more details.
+	This library is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+	Lesser General Public License for more details.
 
 	You should have received a copy of the GNU Lesser General Public License
 	along with this library; if not, write to the Free Software Foundation,
 	Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
-/*
- * $Id: utils.c 6975 2014-09-04 11:33:05Z rousseau $
- */
-
+#include <string.h>
 #include <pcsclite.h>
 
 #include <config.h>
@@ -31,13 +28,14 @@
 #include "debug.h"
 
 int ReaderIndex[CCID_DRIVER_MAX_READERS];
+#define FREE_ENTRY -42
 
 void InitReaderIndex(void)
 {
 	int i;
 
 	for (i=0; i<CCID_DRIVER_MAX_READERS; i++)
-		ReaderIndex[i] = -1;
+		ReaderIndex[i] = FREE_ENTRY;
 } /* InitReaderIndex */
 
 int GetNewReaderIndex(const int Lun)
@@ -56,7 +54,7 @@ int GetNewReaderIndex(const int Lun)
 	}
 
 	for (i=0; i<CCID_DRIVER_MAX_READERS; i++)
-		if (-1 == ReaderIndex[i])
+		if (FREE_ENTRY == ReaderIndex[i])
 		{
 			ReaderIndex[i] = Lun;
 			return i;
@@ -80,6 +78,65 @@ int LunToReaderIndex(const int Lun)
 
 void ReleaseReaderIndex(const int index)
 {
-	ReaderIndex[index] = -1;
+	ReaderIndex[index] = FREE_ENTRY;
 } /* ReleaseReaderIndex */
 
+/* Read a non aligned 16-bit integer */
+uint16_t get_U16(void *buf)
+{
+	uint16_t value;
+
+	memcpy(&value, buf, sizeof value);
+
+	return value;
+}
+
+/* Read a non aligned 32-bit integer */
+uint32_t get_U32(void *buf)
+{
+	uint32_t value;
+
+	memcpy(&value, buf, sizeof value);
+
+	return value;
+}
+
+/* Write a non aligned 16-bit integer */
+void set_U16(void *buf, uint16_t value)
+{
+	memcpy(buf, &value, sizeof value);
+}
+
+/* Write a non aligned 32-bit integer */
+void set_U32(void *buf, uint32_t value)
+{
+	memcpy(buf, &value, sizeof value);
+}
+
+/* swap a 16-bits integer in memory */
+/* "AB" -> "BA" */
+void p_bswap_16(void *ptr)
+{
+	uint8_t *array, tmp;
+
+	array = ptr;
+	tmp = array[0];
+	array[0] = array[1];
+	array[1] = tmp;
+}
+
+/* swap a 32-bits integer in memory */
+/* "ABCD" -> "DCBA" */
+void p_bswap_32(void *ptr)
+{
+	uint8_t *array, tmp;
+
+	array = ptr;
+	tmp = array[0];
+	array[0] = array[3];
+	array[3] = tmp;
+
+	tmp = array[1];
+	array[1] = array[2];
+	array[2] = tmp;
+}

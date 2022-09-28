@@ -17,9 +17,7 @@
 	Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
-/*
- * $Id: defs.h 6926 2014-06-17 09:22:00Z rousseau $
- */
+#define max( a, b )   ( ( ( a ) > ( b ) ) ? ( a ) : ( b ) )
 
 #include <pcsclite.h>
 
@@ -44,11 +42,7 @@ typedef struct CCID_DESC
 	t1_state_t t1;
 
 	/* reader name passed to IFDHCreateChannelByName() */
-#ifdef UEFI_DRIVER
-	CHAR16 *readerName;
-#else
 	char *readerName;
-#endif
 } CcidDesc;
 
 typedef enum {
@@ -102,16 +96,8 @@ typedef enum {
 #define ClosePort CloseSerial
 #define ReadPort ReadSerial
 #define WritePort WriteSerial
+#define DisconnectPort DisconnectSerial
 #include "ccid_serial.h"
-
-#elif defined(UEFI_DRIVER)
-
-#define OpenPortByName OpenUEFIByName
-#define OpenPort OpenUEFI
-#define ClosePort CloseUEFI
-#define ReadPort ReadUEFI
-#define WritePort WriteUEFI
-#include "ccid_uefi.h"
 
 #else
 
@@ -120,6 +106,7 @@ typedef enum {
 #define ClosePort CloseUSB
 #define ReadPort ReadUSB
 #define WritePort WriteUSB
+#define DisconnectPort DisconnectUSB
 #include "ccid_usb.h"
 
 #endif
