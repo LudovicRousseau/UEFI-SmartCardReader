@@ -602,10 +602,8 @@ void ccid_error(int log_level, int error, const char *file, int line,
 	const char *function)
 {
 #ifndef NO_LOG
-#ifdef UEFI_DRIVER
-	const short unsigned int *text;
-#else
 	const char *text;
+#ifndef UEFI_DRIVER
 	char var_text[30];
 #endif
 
@@ -727,7 +725,7 @@ void ccid_error(int log_level, int error, const char *file, int line,
 			break;
 	}
 #ifdef UEFI_DRIVER
-	DEBUG((PCSC_LOG_ERROR, "ERROR CCID: %a\n", text));
+	DEBUG((PCSC_LOG_ERROR, "%a:%d:%a %a\n", file, line, function, text));
 #else
 	log_msg(log_level, "%s:%d:%s %s", file, line, function, text);
 #endif
