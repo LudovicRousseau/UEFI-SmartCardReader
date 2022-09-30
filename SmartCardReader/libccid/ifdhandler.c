@@ -2154,7 +2154,7 @@ void init_driver(void)
 #else
 	/* full debug */
 	LogLevel = DEBUG_LEVEL_CRITICAL | DEBUG_LEVEL_INFO | DEBUG_LEVEL_PERIODIC | DEBUG_LEVEL_COMM;
-	PowerOnVoltage = VOLTAGE_AUTO;
+	PowerOnVoltage = VOLTAGE_5V;
 #endif
 
 	/* initialise the Lun to reader_index mapping */
