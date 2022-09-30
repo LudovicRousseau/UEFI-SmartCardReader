@@ -284,7 +284,7 @@ SmartCardReaderDriverBindingSupported (
 }
 
 /**
-  Initialize the USB CCID device.
+  Unitialize the USB CCID device.
 
   @param  UsbCcidDev            Device instance to be initialized.
 
