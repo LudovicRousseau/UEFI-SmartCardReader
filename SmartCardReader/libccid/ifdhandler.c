@@ -90,7 +90,9 @@ static void FreeChannel(int reader_index)
 
 	(void)ClosePort(reader_index);
 
+#ifndef UEFI_DRIVER
 	free(CcidSlots[reader_index].readerName);
+#endif
 	memset(&CcidSlots[reader_index], 0, sizeof(CcidSlots[reader_index]));
 
 	ReleaseReaderIndex(reader_index);
