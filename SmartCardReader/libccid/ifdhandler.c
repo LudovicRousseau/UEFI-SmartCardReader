@@ -2154,8 +2154,13 @@ void init_driver(void)
 			break;
 	}
 #else
+#ifdef NO_LOG
+	/* only critical logs */
+	LogLevel = DEBUG_LEVEL_CRITICAL;
+#else
 	/* full debug */
 	LogLevel = DEBUG_LEVEL_CRITICAL | DEBUG_LEVEL_INFO | DEBUG_LEVEL_PERIODIC | DEBUG_LEVEL_COMM;
+#endif
 	PowerOnVoltage = VOLTAGE_5V;
 #endif
 
