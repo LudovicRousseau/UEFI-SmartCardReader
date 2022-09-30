@@ -262,6 +262,7 @@ status_t OpenUEFI(unsigned int reader_index, DWORD Channel)
 	usbDevice[reader_index].ccid.gemalto_firmware_features = NULL;
 	usbDevice[reader_index].ccid.sIFD_iManufacturer = NULL;
 	usbDevice[reader_index].ccid.IFD_bcdDevice = UsbCcidDevice->DeviceDescriptor.BcdDevice;
+	usbDevice[reader_index].ccid.dwProtocols = dw2i(ccid_descriptor, 6);
 
 	/* no error */
 	return_value = STATUS_SUCCESS;
