@@ -302,12 +302,14 @@ EXTERNAL RESPONSECODE IFDHCloseChannel(DWORD Lun)
 	DEBUG_INFO3("%s (lun: " DWORD_X ")", CcidSlots[reader_index].readerName,
 		Lun);
 
+#ifndef UEFI_DRIVER
 	/* Restore the default timeout
 	 * No need to wait too long if the reader disapeared */
 	get_ccid_descriptor(reader_index)->readTimeout = DEFAULT_COM_READ_TIMEOUT;
 
 	(void)CmdPowerOff(reader_index);
 	/* No reader status check, if it failed, what can you do ? :) */
+#endif
 
 	FreeChannel(reader_index);
 
