@@ -426,6 +426,19 @@ status_t CloseUEFI(unsigned int reader_index)
 
 /*****************************************************************************
  *
+ *					DisconnectUEFI
+ *
+ ****************************************************************************/
+status_t DisconnectUEFI(unsigned int reader_index)
+{
+	DEBUG_COMM("Disconnect reader");
+
+	return STATUS_SUCCESS;
+} /* DisconnectUEFI */
+
+
+/*****************************************************************************
+ *
  *					get_ccid_usb_bus_number
  *
  ****************************************************************************/

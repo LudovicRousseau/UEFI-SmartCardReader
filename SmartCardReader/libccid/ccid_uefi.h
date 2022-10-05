@@ -35,6 +35,8 @@ status_t ReadUEFI(unsigned int reader_index, unsigned int *length,
 
 status_t CloseUEFI(unsigned int reader_index);
 
+status_t DisconnectUEFI(unsigned int reader_index);
+
 int ControlUSB(int reader_index, int requesttype, int request, int value,
 	unsigned char *bytes, unsigned int size);
 

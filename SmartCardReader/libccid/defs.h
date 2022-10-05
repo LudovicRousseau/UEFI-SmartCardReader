@@ -110,6 +110,7 @@ typedef enum {
 #define ClosePort CloseUEFI
 #define ReadPort ReadUEFI
 #define WritePort WriteUEFI
+#define DisconnectPort DisconnectUEFI
 #include "ccid_uefi.h"
 
 #else
