@@ -1,7 +1,7 @@
 /*
  * This handles GCC attributes
  *
- * MUSCLE SmartCard Development ( http://pcsclite.alioth.debian.org/pcsclite.html )
+ * MUSCLE SmartCard Development ( https://pcsclite.apdu.fr/ )
  *
  * Copyright (C) 2005-2010
  *  Ludovic Rousseau <ludovic.rousseau@free.fr>
@@ -18,9 +18,6 @@ are met:
 3. The name of the author may not be used to endorse or promote products
    derived from this software without specific prior written permission.
 
-Changes to this license can be made only by the copyright author with
-explicit written consent.
-
 THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
 IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
@@ -31,8 +28,6 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * $Id: misc.h 6851 2014-02-14 15:43:32Z rousseau $
  */
 
 #ifndef __misc_h__
@@ -45,10 +40,14 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * see http://gcc.gnu.org/onlinedocs/gcc-3.3.5/gcc/Function-Attributes.html#Function-Attributes
  * see http://www.nedprod.com/programs/gccvisibility.html
  */
-#if defined __GNUC__ && (! defined (__sun)) && (__GNUC__ >= 4 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 3))
+#if defined(__GNUC__) && \
+	(__GNUC__ >= 4 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 3)) || \
+	defined(__SUNPRO_C) && __SUNPRO_C >= 0x590
 #define INTERNAL __attribute__ ((visibility("hidden")))
+#ifndef PCSC_API
 #define PCSC_API __attribute__ ((visibility("default")))
-#elif (! defined __GNUC__ ) && defined (__sun)
+#endif
+#elif defined(__SUNPRO_C) && __SUNPRO_C >= 0x550
 /* http://wikis.sun.com/display/SunStudio/Macros+for+Shared+Library+Symbol+Visibility */
 #define INTERNAL __hidden
 #define PCSC_API __global

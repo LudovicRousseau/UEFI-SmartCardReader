@@ -1,5 +1,5 @@
 /*
- * MUSCLE SmartCard Development ( http://pcsclite.alioth.debian.org/pcsclite.html )
+ * MUSCLE SmartCard Development ( https://pcsclite.apdu.fr/ )
  *
  * Copyright (C) 1999-2004
  *  David Corcoran <corcoran@musclecard.com>
@@ -20,9 +20,6 @@ are met:
 3. The name of the author may not be used to endorse or promote products
    derived from this software without specific prior written permission.
 
-Changes to this license can be made only by the copyright author with
-explicit written consent.
-
 THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
 IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
@@ -33,8 +30,6 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * $Id: ifdhandler.h 6965 2014-09-01 14:52:42Z rousseau $
  */
 
 /**
@@ -45,7 +40,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 The routines specified hereafter will allow you to write an IFD handler
 for the PC/SC Lite resource manager. Please use the complement
 developer's kit complete with headers and Makefile at:
-http://www.musclecard.com/drivers.html
+https://muscle.apdu.fr/musclecard.com/sourcedrivers.html
 
 This gives a common API for communication to most readers in a
 homogeneous fashion. This document assumes that the driver developer is
@@ -87,7 +82,7 @@ Example:
     <string>0x04E6</string>
 @endverbatim
 
-You may have an OEM of this reader in which an additional @c <string>
+You may have an OEM of this reader in which an additional @c \<string>
 can be used like in the below example:
 
 @verbatim
@@ -103,9 +98,8 @@ also. You may chose not to support this feature but it is useful when
 reader vendors OEM products so you only distribute one driver.
 
 
-The CCID driver from Ludovic Rousseau
-http://pcsclite.alioth.debian.org/ccid.html uses this feature since the
-same driver supports many different readers.
+The CCID driver from Ludovic Rousseau https://ccid.apdu.fr/ uses this
+feature since the same driver supports many different readers.
 
 @subsection ifdProductID
 
@@ -124,6 +118,8 @@ same driver supports many different readers.
    <key>ifdFriendlyName</key>
    <string>SCM Microsystems USB Reader</string>
 @endverbatim
+
+The reader name must use the ASCII character set.
 
 @subsection CFBundleExecutable
 
@@ -206,7 +202,7 @@ It has the following syntax:
 # Configuration file for pcsc-lite
 # David Corcoran <corcoran@musclecard.com>
 
-FRIENDLYNAME  Generic Reader
+FRIENDLYNAME  "Generic Reader"
 DEVICENAME    /dev/ttyS0
 LIBPATH       /usr/lib/pcsc/drivers/libgen_ifd.so
 CHANNELID     1
@@ -255,8 +251,7 @@ whichever location your reader resides.
 #ifndef _ifd_handler_h_
 #define _ifd_handler_h_
 
-#include <wintypes.h>
-#define MAX_ATR_SIZE 33 /* from pcsclite.h */
+#include <pcsclite.h>
 
 	/*
 	 * List of data structures available to ifdhandler
@@ -333,6 +328,7 @@ whichever location your reader resides.
 #define TAG_IFD_POLLING_THREAD_KILLABLE 0x0FB1	/**< the polling thread can be killed */
 #define TAG_IFD_STOP_POLLING_THREAD     0x0FB2	/**< method used to stop the polling thread (instead of just pthread_kill()) */
 #define TAG_IFD_POLLING_THREAD_WITH_TIMEOUT 0x0FB3	/**< driver uses a polling thread with a timeout parameter */
+#define TAG_IFD_DEVICE_REMOVED          0x0FB4	/**< signals the reader has been removed*/
 
 	/*
 	 * IFD Handler version number enummerations
@@ -621,16 +617,17 @@ don't mind loading a new driver for each reader then ignore Lun.
 - \ref TAG_IFD_THREAD_SAFE
   If the driver supports more than one reader (see
   \ref TAG_IFD_SIMULTANEOUS_ACCESS above) this tag indicates if the
-  driver supports access to multiple readers at the same time.\n
-  <tt>Value[0] = 1</tt> indicates the driver supports simultaneous accesses.
+  driver supports access to multiple readers at the same time.
+  - <tt>Value[0] = 0</tt>: the driver DOES NOT support simultaneous accesses.
+  - <tt>Value[0] = 1</tt>: the driver supports simultaneous accesses.
 - \ref TAG_IFD_SLOTS_NUMBER
   Return the number of slots in this reader in <tt>Value[0]</tt>.
 - \ref TAG_IFD_SLOT_THREAD_SAFE
   If the reader has more than one slot (see \ref TAG_IFD_SLOTS_NUMBER
   above) this tag indicates if the driver supports access to multiple
-  slots of the same reader at the same time.\n
-  <tt>Value[0] = 1</tt> indicates the driver supports simultaneous slot
-  accesses.
+  slots of the same reader at the same time.
+  - <tt>value[0] = 0</tt>: the driver supports only 1 slot access at a time.
+  - <tt>value[0] = 1</tt>: the driver supports simultaneous slot accesses.
 - \ref TAG_IFD_POLLING_THREAD
   Unused/deprecated
 - \ref TAG_IFD_POLLING_THREAD_WITH_TIMEOUT
@@ -641,6 +638,10 @@ don't mind loading a new driver for each reader then ignore Lun.
 @endverbatim
 - \ref TAG_IFD_POLLING_THREAD_KILLABLE
   Tell if the polling thread can be killed (pthread_kill()) by pcscd
+  - <tt>value[0] = 0</tt>: the driver can NOT be stopped using
+	pthread_cancel(). The driver must then implement
+	\ref TAG_IFD_STOP_POLLING_THREAD
+  - <tt>value[0] = 1</tt>: the driver can be stopped using pthread_cancel()
 - \ref TAG_IFD_STOP_POLLING_THREAD
   Returns a pointer in @p Value to the function used to stop the polling
   thread returned by \ref TAG_IFD_POLLING_THREAD_WITH_TIMEOUT. The
@@ -653,6 +654,8 @@ don't mind loading a new driver for each reader then ignore Lun.
 
 @return Error codes
 @retval IFD_SUCCESS Successful (\ref IFD_SUCCESS)
+@retval IFD_ERROR_INSUFFICIENT_BUFFER Buffer is too small (\ref IFD_ERROR_INSUFFICIENT_BUFFER)
+@retval IFD_COMMUNICATION_ERROR Error has occurred (\ref IFD_COMMUNICATION_ERROR)
 @retval IFD_ERROR_TAG Invalid tag given (\ref IFD_ERROR_TAG)
 @retval IFD_NO_SUCH_DEVICE The reader is no more present (\ref IFD_NO_SUCH_DEVICE)
  */
@@ -671,7 +674,7 @@ don't mind loading a new driver for each reader then ignore @p Lun.
 @param[out] Value Value of the desired data
 
 This function is also called when the application uses the PC/SC
-SCardGetAttrib() function. The list of supported tags is not limited.
+SCardSetAttrib() function. The list of supported tags is not limited.
 
 @return Error codes
 @retval IFD_SUCCESS Successful (\ref IFD_SUCCESS)
@@ -821,5 +824,4 @@ command each time this function is called.
  */
 RESPONSECODE IFDHICCPresence(DWORD Lun);
 
-void SetReaderName(DWORD Lun, CHAR16 *ReaderName);
 #endif
