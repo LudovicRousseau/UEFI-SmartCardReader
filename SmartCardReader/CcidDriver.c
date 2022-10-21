@@ -374,8 +374,8 @@ InitializeUsbCcidDevice (
       continue;
     }
 
-    StrCpyS(UsbCcidDevice->ReaderName, sizeof UsbCcidDevice->ReaderName, ManufacturerString);
-    StrCatS(UsbCcidDevice->ReaderName, sizeof UsbCcidDevice->ReaderName, L" ");
+    StrCpyS(UsbCcidDevice->ReaderName, sizeof(UsbCcidDevice->ReaderName)/sizeof(CHAR16), ManufacturerString);
+    StrCatS(UsbCcidDevice->ReaderName, sizeof(UsbCcidDevice->ReaderName)/sizeof(CHAR16), L" ");
 
     FreePool(ManufacturerString);
     break;
@@ -393,7 +393,7 @@ InitializeUsbCcidDevice (
       continue;
     }
 
-    StrCatS(UsbCcidDevice->ReaderName, sizeof UsbCcidDevice->ReaderName, ProductString);
+    StrCatS(UsbCcidDevice->ReaderName, sizeof(UsbCcidDevice->ReaderName)/sizeof(CHAR16), ProductString);
 
     FreePool(ProductString);
     break;
@@ -411,7 +411,7 @@ error:
 
   /* Add the Lun */
   UnicodeSPrint(TxtLun, sizeof(TxtLun)/sizeof(TxtLun[0]), L" %d", UsbCcidDevice->Lun);
-  StrCatS(UsbCcidDevice->ReaderName, sizeof UsbCcidDevice->ReaderName, TxtLun);
+  StrCatS(UsbCcidDevice->ReaderName, sizeof(UsbCcidDevice->ReaderName)/sizeof(CHAR16), TxtLun);
 
   /* Length (in bytes) including Null terminator */
   UsbCcidDevice->ReaderNameLength = StrSize(UsbCcidDevice->ReaderName);
@@ -593,7 +593,7 @@ SmartCardReaderDriverBindingStart (
 
     /* Add the slot number */
     UnicodeSPrint(TxtSlot, sizeof(TxtSlot)/sizeof(TxtSlot[0]), L", %d", slot);
-    StrCatS(new_UsbCcidDevice->ReaderName, sizeof UsbCcidDevice->ReaderName, TxtSlot);
+    StrCatS(new_UsbCcidDevice->ReaderName, sizeof(UsbCcidDevice->ReaderName)/sizeof(CHAR16), TxtSlot);
 
     /* Set the reader name to the lower level */
     new_reader_index = LunToReaderIndex(new_UsbCcidDevice->Lun);
